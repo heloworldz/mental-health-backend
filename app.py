@@ -21,6 +21,10 @@ def analyze_sentiment(text):
     else:
         return "neutral"
 
+@app.route("/")
+def home():
+    return "Backend is running!"
+
 @app.route("/chat", methods=["POST"])
 def chat():
     data = request.json
