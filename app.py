@@ -35,5 +35,5 @@ def chat():
 import os
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))  # Use Render's assigned port
-    app.run(host="0.0.0.0", port=port, debug=False)  # Set debug=False for production
+    port = int(os.environ.get("PORT", 5000))  # Render will override this with its PORT variable
+    app.run(host="0.0.0.0", port=port, debug=False)
