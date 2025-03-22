@@ -15,12 +15,15 @@ responses = {
 
 def analyze_sentiment(text):
     sentiment = TextBlob(text).sentiment.polarity
-    if sentiment > 0.2:
+    print(f"Sentiment Score: {sentiment}")  # Debugging line
+
+    if sentiment >= 0.1:  # 🔹 Make threshold lower
         return "positive"
-    elif sentiment < -0.2:
+    elif sentiment <= -0.1:  # 🔹 Make threshold lower
         return "negative"
     else:
         return "neutral"
+
 
 @app.route("/")
 def home():
