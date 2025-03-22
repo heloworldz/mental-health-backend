@@ -1,3 +1,4 @@
+import os
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import random
@@ -32,8 +33,7 @@ def chat():
     sentiment = analyze_sentiment(user_input)
     response = random.choice(responses[sentiment])
     return jsonify({"response": response, "sentiment": sentiment})
-import os
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))  # Render will override this with its PORT variable
+    port = int(os.environ.get("PORT", 5000))  # Ensure Render's PORT is used
     app.run(host="0.0.0.0", port=port, debug=False)
