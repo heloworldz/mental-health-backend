@@ -7,7 +7,8 @@ import scipy.io.wavfile
 import tempfile
 huggingface_token = st.secrets["HUGGINGFACE_TOKEN"]
 # Set your OpenAI API key from Streamlit secrets
-openai.api_key = st.secrets["sk"]
+openai.api_key = st.secrets["general"]["sk"]  # ✅ This is correct
+
 
 # Analyze sentiment
 def analyze_sentiment(text):
