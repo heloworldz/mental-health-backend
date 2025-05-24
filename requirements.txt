@@ -1,4 +1,7 @@
 streamlit
-
+openai
 textblob
-speechrecognition
+sounddevice
+numpy
+scipy
+SpeechRecognition
