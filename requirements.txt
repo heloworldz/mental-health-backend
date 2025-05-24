@@ -1,7 +1,6 @@
 streamlit
+flask
+flask-cors
 textblob
 speechrecognition
 pyaudio
-ollama
-tinyllama
-huggingface_hub
