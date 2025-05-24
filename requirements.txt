@@ -1,7 +1,6 @@
 streamlit
 openai
 textblob
-sounddevice
 numpy
 scipy
 SpeechRecognition
