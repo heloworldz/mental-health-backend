@@ -1,145 +1,132 @@
 import streamlit as st
-import ollama
+import openai
 import base64
-from voice_sentiment import record_voice, analyze_sentiment
+from textblob import TextBlob
+import sounddevice as sd
+import numpy as np
+import scipy.io.wavfile
+import tempfile
 
-# -------------------- System Prompt Setup --------------------
-system_prompt = "You are a kind and supportive mental health chatbot. Give empathetic, safe advice for emotional support."
+# Set your OpenAI API key
+openai.api_key = st.secrets["OPENAI_API_KEY"]  # Or directly use: openai.api_key = "your-key"
 
-# Ensure conversation history is initialized and system prompt is at the top
-if 'conversation_history' not in st.session_state:
-    st.session_state['conversation_history'] = [{"role": "system", "content": system_prompt}]
-elif not st.session_state['conversation_history'] or st.session_state['conversation_history'][0]['role'] != "system":
-    st.session_state['conversation_history'].insert(0, {"role": "system", "content": system_prompt})
+# Function to record voice
+def record_voice(duration=5, fs=44100):
+    st.info("Recording for {} seconds...".format(duration))
+    recording = sd.rec(int(duration * fs), samplerate=fs, channels=1)
+    sd.wait()
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmpfile:
+        scipy.io.wavfile.write(tmpfile.name, fs, recording)
+        audio_data = tmpfile.name
+    from speech_recognition import Recognizer, AudioFile
+    recognizer = Recognizer()
+    with AudioFile(audio_data) as source:
+        audio = recognizer.record(source)
+        text = recognizer.recognize_google(audio)
+    return text
 
-# -------------------- Page Setup --------------------
-st.set_page_config(page_title="Mental Health Chatbot")
+# Analyze sentiment
+def analyze_sentiment(text):
+    polarity = TextBlob(text).sentiment.polarity
+    if polarity > 0.1:
+        return "positive", polarity
+    elif polarity < -0.1:
+        return "negative", polarity
+    else:
+        return "neutral", polarity
 
-def get_base64(background):
-    with open(background, "rb") as f:
-        data = f.read()
-    return base64.b64encode(data).decode()
+# Detect crisis language
+def detect_risk(message):
+    suicide_phrases = ["kill myself", "want to die", "can't go on", "suicide", "end my life"]
+    violence_phrases = ["kill someone", "hurt others", "murder", "attack"]
+    lower = message.lower()
+    if any(p in lower for p in suicide_phrases):
+        return "suicide"
+    if any(p in lower for p in violence_phrases):
+        return "violence"
+    return None
 
-bin_str = get_base64("background.jpg")
-
-st.markdown(f"""
-    <style>
-        [data-testid="stAppViewContainer"] > .main {{
-            background-image: url("data:image/png;base64,{bin_str}");
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
-        }}
-    </style>
-""", unsafe_allow_html=True)
-
-# -------------------- Helpline Info --------------------
 helplines = {
     "india": [
         "📞 iCall: +91 9152987821",
         "📞 AASRA: +91 9820466726",
         "📞 24x7 Helpline: 1800-599-0019"
-    ],
-    "usa": [
-        "📞 988 Suicide & Crisis Lifeline: Call or text 988"
     ]
 }
 
-# -------------------- Risk Detection --------------------
-suicide_phrases = [
-    "kill myself", "want to die", "can't go on", "suicide",
-    "end my life", "i'm done", "take my life", "no reason to live"
-]
-violence_phrases = [
-    "kill someone", "kill somebody", "hurt others", "murder someone",
-    "i want to kill", "plan to kill", "harm someone", "attack someone"
-]
-
-def detect_risk(message):
-    text = message.lower()
-    if any(p in text for p in suicide_phrases):
-        return "suicide"
-    if any(p in text for p in violence_phrases):
-        return "violence"
-    return None
-
-# -------------------- Generate Responses --------------------
+# Generate chatbot response
 def generate_response(user_input):
     risk = detect_risk(user_input)
     if risk == "suicide":
-        support_msg = (
-            "I'm really sorry you're feeling this way. You're not alone — there are people who care about you.\n\n"
-            "Please consider talking to a mental health professional, a friend, or a family member. Your well-being matters.\n\n"
-            "**If you're in India, here are some helplines you can reach out to:**\n"
-            + "\n".join(helplines["india"]) +
-            "\n\nYou can also let me know how you're feeling — I'm here to listen."
-        )
-        st.session_state['conversation_history'].append({"role": "assistant", "content": support_msg})
-        return support_msg
+        return ("I'm really sorry you're feeling this way. You're not alone. Please reach out for help.\n" +
+                "\n".join(helplines["india"]))
 
-    st.session_state['conversation_history'].append({"role": "user", "content": user_input})
-    response = ollama.chat(model="tinyllama", messages=st.session_state['conversation_history'])
-    ai_response = response['message']['content']
-    st.session_state['conversation_history'].append({"role": "assistant", "content": ai_response})
-    return ai_response
+    st.session_state.conversation.append({"role": "user", "content": user_input})
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=st.session_state.conversation
+    )
+    reply = response["choices"][0]["message"]["content"]
+    st.session_state.conversation.append({"role": "assistant", "content": reply})
+    return reply
+
+# Generate affirmation/meditation
+def generate_affirmation():
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": "Give a positive affirmation for someone feeling stressed."}]
+    )
+    return response["choices"][0]["message"]["content"]
 
 def generate_meditation_guide():
-    prompt = "Provide a short guided meditation for relaxation."
-    response = ollama.chat(model="tinyllama", messages=[{"role": "user", "content": prompt}])
-    return response['message']['content']
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": "Give a short guided meditation for relaxation."}]
+    )
+    return response["choices"][0]["message"]["content"]
 
-def generate_affirmation():
-    prompt = "Provide a positive affirmation to encourage someone who is feeling stressed or overwhelmed."
-    response = ollama.chat(model="tinyllama", messages=[{"role": "user", "content": prompt}])
-    return response['message']['content']
+# App Setup
+st.set_page_config(page_title="Mental Health Chatbot")
+st.title("🧠 Mental Health Support Chatbot")
 
-# -------------------- Interface --------------------
-st.title("🧠 Mental Health Support Agent")
+if 'conversation' not in st.session_state:
+    st.session_state.conversation = [{"role": "system", "content": "You are a kind and empathetic mental health assistant."}]
 
-# Show conversation history
-for msg in st.session_state['conversation_history']:
-    role = "You" if msg['role'] == "user" else "AI"
-    st.markdown(f"**{role}:** {msg['content']}")
+# Show chat history
+for msg in st.session_state.conversation:
+    if msg['role'] in ['user', 'assistant']:
+        name = "You" if msg['role'] == "user" else "AI"
+        st.markdown(f"**{name}:** {msg['content']}")
 
-# --- Input Section (Text or Voice) ---
 col1, col2 = st.columns([3, 1])
-
 with col1:
     user_message = st.text_input("How can I help you today?")
-
 with col2:
-    speak_clicked = st.button("🎤 Speak")
+    speak = st.button("🎤 Speak")
 
-# --- Handle Voice Input ---
-if speak_clicked:
-    voice_message = record_voice()
-    st.markdown(f"**You (via voice):** {voice_message}")
+if speak:
+    try:
+        voice_text = record_voice()
+        st.markdown(f"**You (voice):** {voice_text}")
+        mood, score = analyze_sentiment(voice_text)
+        st.markdown(f"**Detected mood:** {mood} ({score:.2f})")
+        with st.spinner("AI is responding..."):
+            response = generate_response(voice_text)
+            st.markdown(f"**AI:** {response}")
+    except Exception as e:
+        st.error("Voice recognition failed: " + str(e))
 
-    mood, score = analyze_sentiment(voice_message)
-    st.markdown(f"**Detected mood:** {mood} (polarity: {score:.2f})")
-
-    with st.spinner("Thinking..."):
-        ai_response = generate_response(voice_message)
-        st.markdown(f"**AI:** {ai_response}")
-
-# --- Handle Typed Input ---
 elif user_message:
     mood, score = analyze_sentiment(user_message)
-    st.markdown(f"**Detected mood:** {mood} (polarity: {score:.2f})")
+    st.markdown(f"**Detected mood:** {mood} ({score:.2f})")
+    with st.spinner("AI is responding..."):
+        response = generate_response(user_message)
+        st.markdown(f"**AI:** {response}")
 
-    with st.spinner("Thinking..."):
-        ai_response = generate_response(user_message)
-        st.markdown(f"**AI:** {ai_response}")
-
-# --- Optional Tools ---
 col3, col4 = st.columns(2)
-
 with col3:
-    if st.button("🌤️ Positive Affirmation"):
-        affirmation = generate_affirmation()
-        st.markdown(f"**Affirmation:** {affirmation}")
-
+    if st.button("🌈 Positive Affirmation"):
+        st.markdown("**Affirmation:** " + generate_affirmation())
 with col4:
-    if st.button("🧘‍♂️ Guided Meditation"):
-        meditation_guide = generate_meditation_guide()
-        st.markdown(f"**Guided Meditation:** {meditation_guide}")
+    if st.button("🧘 Guided Meditation"):
+        st.markdown("**Meditation:** " + generate_meditation_guide())
