@@ -8,7 +8,8 @@ import scipy.io.wavfile
 import tempfile
 
 # Set your OpenAI API key
-openai.api_key = st.secrets["OPENAI_API_KEY"]  # Or directly use: openai.api_key = "your-key"
+openai.api_key = st.secrets["OPENAI_API_KEY"]
+ # Or directly use: openai.api_key = "your-key"
 
 # Function to record voice
 def record_voice(duration=5, fs=44100):
