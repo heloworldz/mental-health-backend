@@ -9,6 +9,27 @@ from openai import OpenAI
 
 huggingface_token = st.secrets["HUGGINGFACE_TOKEN"]
 client = OpenAI(api_key=st.secrets["general"]["sk"])
+import openai.error
+
+def generate_response(user_input):
+    risk = detect_risk(user_input)
+    if risk == "suicide":
+        return ("I'm really sorry you're feeling this way. You're not alone. Please reach out for help.\n" +
+                "\n".join(helplines["india"]))
+
+    st.session_state.conversation.append({"role": "user", "content": user_input})
+    try:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=st.session_state.conversation
+        )
+        reply = response.choices[0].message.content
+        st.session_state.conversation.append({"role": "assistant", "content": reply})
+        return reply
+    except openai.error.RateLimitError:
+        return "Sorry, we're hitting the usage limit right now. Please try again later."
+    except Exception as e:
+        return f"An error occurred: {str(e)}"
 
 # Analyze sentiment
 def analyze_sentiment(text):
