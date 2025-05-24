@@ -1,6 +1,5 @@
 streamlit
-flask
-flask-cors
+
 textblob
 speechrecognition
 pyaudio
