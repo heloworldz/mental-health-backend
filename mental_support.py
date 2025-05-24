@@ -1,38 +1,37 @@
 import streamlit as st
 import ollama
 import base64
-import os
-from huggingface_hub import login
 from voice_sentiment import record_voice, analyze_sentiment
 
-# -------------------- Hugging Face Login --------------------
-hf_token = os.getenv("HUGGINGFACE_TOKEN")
-if hf_token:
-    login(token=hf_token)
-else:
-    st.warning("⚠️ Hugging Face token not found. Please set the 'HUGGINGFACE_TOKEN' as an environment variable or use Streamlit secrets.")
+# -------------------- System Prompt Setup --------------------
+system_prompt = "You are a kind and supportive mental health chatbot. Give empathetic, safe advice for emotional support."
+
+# Ensure conversation history is initialized and system prompt is at the top
+if 'conversation_history' not in st.session_state:
+    st.session_state['conversation_history'] = [{"role": "system", "content": system_prompt}]
+elif not st.session_state['conversation_history'] or st.session_state['conversation_history'][0]['role'] != "system":
+    st.session_state['conversation_history'].insert(0, {"role": "system", "content": system_prompt})
 
 # -------------------- Page Setup --------------------
 st.set_page_config(page_title="Mental Health Chatbot")
 
-def get_base64(background_path):
-    with open(background_path, "rb") as f:
-        return base64.b64encode(f.read()).decode()
+def get_base64(background):
+    with open(background, "rb") as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
 
-try:
-    bin_str = get_base64("background.jpg")
-    st.markdown(f"""
-        <style>
-            [data-testid="stAppViewContainer"] > .main {{
-                background-image: url("data:image/png;base64,{bin_str}");
-                background-size: cover;
-                background-position: center;
-                background-repeat: no-repeat;
-            }}
-        </style>
-    """, unsafe_allow_html=True)
-except FileNotFoundError:
-    st.warning("Background image 'background.jpg' not found. Using default background.")
+bin_str = get_base64("background.jpg")
+
+st.markdown(f"""
+    <style>
+        [data-testid="stAppViewContainer"] > .main {{
+            background-image: url("data:image/png;base64,{bin_str}");
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+        }}
+    </style>
+""", unsafe_allow_html=True)
 
 # -------------------- Helpline Info --------------------
 helplines = {
@@ -64,11 +63,7 @@ def detect_risk(message):
         return "violence"
     return None
 
-# -------------------- Session State --------------------
-if 'conversation_history' not in st.session_state:
-    st.session_state['conversation_history'] = []
-
-# -------------------- Response Generation --------------------
+# -------------------- Generate Responses --------------------
 def generate_response(user_input):
     risk = detect_risk(user_input)
     if risk == "suicide":
@@ -98,48 +93,52 @@ def generate_affirmation():
     response = ollama.chat(model="tinyllama", messages=[{"role": "user", "content": prompt}])
     return response['message']['content']
 
-# -------------------- App Interface --------------------
+# -------------------- Interface --------------------
 st.title("🧠 Mental Health Support Agent")
 
-# Show previous conversation
+# Show conversation history
 for msg in st.session_state['conversation_history']:
-    speaker = "You" if msg["role"] == "user" else "AI"
-    st.markdown(f"**{speaker}:** {msg['content']}")
+    role = "You" if msg['role'] == "user" else "AI"
+    st.markdown(f"**{role}:** {msg['content']}")
 
-# Input Area (Text or Voice)
+# --- Input Section (Text or Voice) ---
 col1, col2 = st.columns([3, 1])
+
 with col1:
     user_message = st.text_input("How can I help you today?")
+
 with col2:
     speak_clicked = st.button("🎤 Speak")
 
-# Voice Input Handling
+# --- Handle Voice Input ---
 if speak_clicked:
     voice_message = record_voice()
-    if voice_message:
-        st.markdown(f"**You (via voice):** {voice_message}")
-        mood, score = analyze_sentiment(voice_message)
-        st.markdown(f"**Detected mood:** {mood} (polarity: {score:.2f})")
-        with st.spinner("Thinking..."):
-            ai_response = generate_response(voice_message)
-            st.markdown(f"**AI:** {ai_response}")
-    else:
-        st.warning("Could not record voice. Please try again.")
+    st.markdown(f"**You (via voice):** {voice_message}")
 
-# Text Input Handling
+    mood, score = analyze_sentiment(voice_message)
+    st.markdown(f"**Detected mood:** {mood} (polarity: {score:.2f})")
+
+    with st.spinner("Thinking..."):
+        ai_response = generate_response(voice_message)
+        st.markdown(f"**AI:** {ai_response}")
+
+# --- Handle Typed Input ---
 elif user_message:
     mood, score = analyze_sentiment(user_message)
     st.markdown(f"**Detected mood:** {mood} (polarity: {score:.2f})")
+
     with st.spinner("Thinking..."):
         ai_response = generate_response(user_message)
         st.markdown(f"**AI:** {ai_response}")
 
-# Optional Tools
+# --- Optional Tools ---
 col3, col4 = st.columns(2)
+
 with col3:
     if st.button("🌤️ Positive Affirmation"):
         affirmation = generate_affirmation()
         st.markdown(f"**Affirmation:** {affirmation}")
+
 with col4:
     if st.button("🧘‍♂️ Guided Meditation"):
         meditation_guide = generate_meditation_guide()
