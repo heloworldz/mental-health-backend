@@ -5,7 +5,7 @@ from textblob import TextBlob
 import numpy as np
 import scipy.io.wavfile
 import tempfile
-
+huggingface_token = st.secrets["HUGGINGFACE_TOKEN"]
 # Set your OpenAI API key from Streamlit secrets
 openai.api_key = st.secrets["sk"]
 
