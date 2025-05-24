@@ -5,10 +5,10 @@ from textblob import TextBlob
 import numpy as np
 import scipy.io.wavfile
 import tempfile
-huggingface_token = st.secrets["HUGGINGFACE_TOKEN"]
-# Set your OpenAI API key from Streamlit secrets
-openai.api_key = st.secrets["general"]["sk"]  # ✅ This is correct
+from openai import OpenAI
 
+huggingface_token = st.secrets["HUGGINGFACE_TOKEN"]
+client = OpenAI(api_key=st.secrets["general"]["sk"])
 
 # Analyze sentiment
 def analyze_sentiment(text):
@@ -47,33 +47,34 @@ def generate_response(user_input):
                 "\n".join(helplines["india"]))
 
     st.session_state.conversation.append({"role": "user", "content": user_input})
-    response = openai.ChatCompletion.create(
+    response = client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=st.session_state.conversation
     )
-    reply = response["choices"][0]["message"]["content"]
+    reply = response.choices[0].message.content
     st.session_state.conversation.append({"role": "assistant", "content": reply})
     return reply
 
 # Generate affirmation/meditation
 def generate_affirmation():
-    response = openai.ChatCompletion.create(
+    response = client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[{"role": "user", "content": "Give a positive affirmation for someone feeling stressed."}]
     )
-    return response["choices"][0]["message"]["content"]
+    return response.choices[0].message.content
 
 def generate_meditation_guide():
-    response = openai.ChatCompletion.create(
+    response = client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[{"role": "user", "content": "Give a short guided meditation for relaxation."}]
     )
-    return response["choices"][0]["message"]["content"]
+    return response.choices[0].message.content
 
 # App Setup
 st.set_page_config(page_title="Mental Health Chatbot")
 st.title("🧠 Mental Health Support Chatbot")
 
+# Initialize conversation state at the top before any usage
 if 'conversation' not in st.session_state:
     st.session_state.conversation = [{"role": "system", "content": "You are a kind and empathetic mental health assistant."}]
 
