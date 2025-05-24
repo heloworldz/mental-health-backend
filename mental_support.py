@@ -2,29 +2,12 @@ import streamlit as st
 import openai
 import base64
 from textblob import TextBlob
-import sounddevice as sd
 import numpy as np
 import scipy.io.wavfile
 import tempfile
 
-# Set your OpenAI API key
-openai.api_key = st.secrets["OPENAI_API_KEY"]
- # Or directly use: openai.api_key = "your-key"
-
-# Function to record voice
-def record_voice(duration=5, fs=44100):
-    st.info("Recording for {} seconds...".format(duration))
-    recording = sd.rec(int(duration * fs), samplerate=fs, channels=1)
-    sd.wait()
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmpfile:
-        scipy.io.wavfile.write(tmpfile.name, fs, recording)
-        audio_data = tmpfile.name
-    from speech_recognition import Recognizer, AudioFile
-    recognizer = Recognizer()
-    with AudioFile(audio_data) as source:
-        audio = recognizer.record(source)
-        text = recognizer.recognize_google(audio)
-    return text
+# Set your OpenAI API key from Streamlit secrets
+openai.api_key = st.secrets["sk"]
 
 # Analyze sentiment
 def analyze_sentiment(text):
@@ -99,21 +82,30 @@ for msg in st.session_state.conversation:
         name = "You" if msg['role'] == "user" else "AI"
         st.markdown(f"**{name}:** {msg['content']}")
 
+# Text input
 col1, col2 = st.columns([3, 1])
 with col1:
     user_message = st.text_input("How can I help you today?")
 with col2:
-    speak = st.button("🎤 Speak")
+    upload_audio = st.file_uploader("🎤 Upload voice (.wav)", type=["wav"])
 
-if speak:
+# Process voice input
+if upload_audio:
+    from speech_recognition import Recognizer, AudioFile
+    recognizer = Recognizer()
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmpfile:
+        tmpfile.write(upload_audio.read())
+        tmpfile_path = tmpfile.name
     try:
-        voice_text = record_voice()
-        st.markdown(f"**You (voice):** {voice_text}")
-        mood, score = analyze_sentiment(voice_text)
-        st.markdown(f"**Detected mood:** {mood} ({score:.2f})")
-        with st.spinner("AI is responding..."):
-            response = generate_response(voice_text)
-            st.markdown(f"**AI:** {response}")
+        with AudioFile(tmpfile_path) as source:
+            audio = recognizer.record(source)
+            voice_text = recognizer.recognize_google(audio)
+            st.markdown(f"**You (voice):** {voice_text}")
+            mood, score = analyze_sentiment(voice_text)
+            st.markdown(f"**Detected mood:** {mood} ({score:.2f})")
+            with st.spinner("AI is responding..."):
+                response = generate_response(voice_text)
+                st.markdown(f"**AI:** {response}")
     except Exception as e:
         st.error("Voice recognition failed: " + str(e))
 
@@ -124,6 +116,7 @@ elif user_message:
         response = generate_response(user_message)
         st.markdown(f"**AI:** {response}")
 
+# Extra features
 col3, col4 = st.columns(2)
 with col3:
     if st.button("🌈 Positive Affirmation"):
